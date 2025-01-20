@@ -1,5 +1,8 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
+
+#include <tuple>
+
 #include "bvh.h"
 
 namespace py = pybind11;
@@ -15,7 +18,7 @@ PYBIND11_MODULE(bvh, m) {
             auto r_d = ray_directions.unchecked<2>();
 
             if (r_o.shape(0) != r_d.shape(0)) {
-                throw std::runtime_error("Mismatched ray origins and directions!");
+                throw std::runtime_error("Mismatched ray origins and directigons!");
             }
 
             std::vector<glm::vec3> origins(r_o.shape(0)), directions(r_d.shape(0));
@@ -25,14 +28,24 @@ PYBIND11_MODULE(bvh, m) {
             }
 
             int size = origins.size();
-            py::array_t<float> output({2, size});
-            auto buf = output.mutable_unchecked<2>();
-            for (size_t i = 0; i < origins.size(); ++i) {
-                auto [x, y] = self.intersect_leaves(origins[i], directions[i]);
-                buf(0, i) = x;
-                buf(1, i) = y;
+            py::array_t<bool> mask({size});
+            py::array_t<int> leaf_indices({size});
+            py::array_t<float> t_enters({size});
+            py::array_t<float> t_exits({size});
+
+            auto mask_buf = mask.mutable_unchecked<1>();
+            auto leaf_indices_buf = leaf_indices.mutable_unchecked<1>();
+            auto t_enters_buf = t_enters.mutable_unchecked<1>();
+            auto t_exits_buf = t_exits.mutable_unchecked<1>();
+
+            for (int i = 0; i < size; ++i) {
+                auto [mask, leaf_index, t_enter, t_exit] = self.intersect_leaves(origins[i], directions[i]);
+                mask_buf(i) = mask;
+                leaf_indices_buf(i) = leaf_index;
+                t_enters_buf(i) = t_enter;
+                t_exits_buf(i) = t_exit;
             }
 
-            return output;
+            return std::make_tuple(mask, leaf_indices, t_enters, t_exits);
         });
 }

@@ -13,7 +13,6 @@ def cut_edges(img):
     return mixed
 
 
-# Load scene
 loader = BVH()
 loader.load_scene("suzanne2.fbx")
 loader.build_bvh(15)
@@ -32,20 +31,23 @@ pixels = np.hstack((
 origins = np.tile(origin, (pixels.shape[0], 1))
 directions = pixels - origins
 
-results = loader.intersect_leaves(origins, directions)
-
-t1 = np.min(results, axis=0)
+mask, leaf_indices, t1, t2 = loader.intersect_leaves(origins, directions)
 
 img = t1.reshape(resolution, resolution)
-img[img > 1e10] = 0
-img[img > 0] -= 2
+mask = mask.reshape(resolution, resolution)
+# img[mask] = 0
 img = (img - np.min(img)) / (np.max(img) - np.min(img))
+img = img * 0.8
 img = cut_edges(img)
 
-img[img == 0] = 1
+# img[mask] = 1
+img[~mask] = 1
+
+# img = 1 - img
 
 plt.axis('off')
 
 plt.imshow(img, cmap='gray')
+plt.tight_layout()
 plt.savefig('suzanne2.png')
 plt.show()
