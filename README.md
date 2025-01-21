@@ -7,9 +7,8 @@ But GUESS WHAT? PYTHON BINDINGS ARE ALREADY HERE! See `tests/test.py`
 ![no image?](https://i.imgur.com/sVzMaJX.png)
 
 ## Requirements
-* Assimp
-* glm
-* `numpy matplotlib scipy`
+* `sudo pacman -S assimp glm` or similar with other package managers
+* `pip install -r requirements.txt`
 
 ## Installation
 
