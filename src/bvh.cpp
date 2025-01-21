@@ -18,7 +18,8 @@
 
 
 void BVH::build_bvh(int depth) {
-    root = new BVHNode;
+    nodes.push_back(BVHNode());
+    BVHNode *root = &nodes[0];
 
     root->min = glm::vec3(FLT_MAX);
     root->max = glm::vec3(-FLT_MAX);
@@ -31,20 +32,22 @@ void BVH::build_bvh(int depth) {
 
     root->faces = mesh.faces;
 
-    grow_bvh(root, depth);
+    grow_bvh(0, depth);
 }
 
 
-void BVH::grow_bvh(BVHNode *node, int depth) {
-    if (depth <= 0 || node->faces.size() <= 1) {
-        cout << "Child node min: " << node->min.x << " " << node->min.y << " " << node->min.z << endl;
-        cout << "Child node max: " << node->max.x << " " << node->max.y << " " << node->max.z << endl;
+void BVH::grow_bvh(int node, int depth) {
+    BVHNode *root = &nodes[node];
+
+    if (depth <= 0 || root->faces.size() <= 1) {
+        cout << "Child node min: " << root->min.x << " " << root->min.y << " " << root->min.z << endl;
+        cout << "Child node max: " << root->max.x << " " << root->max.y << " " << root->max.z << endl;
         cout << endl;
 
         return;
     }
 
-    glm::vec3 size = node->max - node->min;
+    glm::vec3 size = root->max - root->min;
     int axis = 0;
     if (size.y > size.x && size.y > size.z) {
         axis = 1;
@@ -53,7 +56,7 @@ void BVH::grow_bvh(BVHNode *node, int depth) {
         axis = 2;
     }
 
-    std::vector<Face> faces_sorted = node->faces;
+    std::vector<Face> faces_sorted = root->faces;
     std::sort(faces_sorted.begin(), faces_sorted.end(), [&](Face a, Face b) {
         glm::vec3 a_min = glm::vec3(FLT_MAX);
         glm::vec3 a_max = glm::vec3(-FLT_MAX);
@@ -75,81 +78,74 @@ void BVH::grow_bvh(BVHNode *node, int depth) {
 
     int split_i = faces_sorted.size() / 2;
 
-    BVHNode *left = new BVHNode;
-    left->min = glm::vec3(FLT_MAX);
-    left->max = glm::vec3(-FLT_MAX);
+    BVHNode left;
+    left.min = glm::vec3(FLT_MAX);
+    left.max = glm::vec3(-FLT_MAX);
 
-    BVHNode *right = new BVHNode;
-    right->min = glm::vec3(FLT_MAX);
-    right->max = glm::vec3(-FLT_MAX);
+    BVHNode right;
+    right.min = glm::vec3(FLT_MAX);
+    right.max = glm::vec3(-FLT_MAX);
 
     for (int i = 0; i < split_i; i++) {
         Face face = faces_sorted[i];
         for (int j = 0; j < 3; j++) {
             glm::vec3 vertex = mesh.vertices[face[j]];
-            left->min = glm::min(left->min, vertex);
-            left->max = glm::max(left->max, vertex);
+            left.min = glm::min(left.min, vertex);
+            left.max = glm::max(left.max, vertex);
         }
-        left->faces.push_back(face);
+        left.faces.push_back(face);
     }
 
     for (int i = split_i; i < faces_sorted.size(); i++) {
         Face face = faces_sorted[i];
         for (int j = 0; j < 3; j++) {
             glm::vec3 vertex = mesh.vertices[face[j]];
-            right->min = glm::min(right->min, vertex);
-            right->max = glm::max(right->max, vertex);
+            right.min = glm::min(right.min, vertex);
+            right.max = glm::max(right.max, vertex);
         }
-        right->faces.push_back(face);
+        right.faces.push_back(face);
     }
 
     cout << "Current depth is " << depth << endl;
-    cout << "Parent node min: " << node->min.x << " " << node->min.y << " " << node->min.z << endl;
-    cout << "Parent node max: " << node->max.x << " " << node->max.y << " " << node->max.z << endl;
+    cout << "Parent node min: " << root->min.x << " " << root->min.y << " " << root->min.z << endl;
+    cout << "Parent node max: " << root->max.x << " " << root->max.y << " " << root->max.z << endl;
     float split_coord = mesh.vertices[faces_sorted[split_i].v1][axis];
     cout << "Splitting at " << split_coord << " on axis " << axis << endl;
-    cout << "Number of faces left: " << left->faces.size() << endl;
-    cout << "Number of faces right: " << right->faces.size() << endl;
+    cout << "Number of faces left: " << left.faces.size() << endl;
+    cout << "Number of faces right: " << right.faces.size() << endl;
     cout << endl;
 
-    if (left->faces.size() > 0) {
-        node->left = left;
-        grow_bvh(left, depth - 1);
-    } else {
-        delete left;
+    if (left.faces.size() > 0) {
+        nodes.push_back(left);
+        nodes[node].left = nodes.size() - 1;
+        grow_bvh(nodes.size() - 1, depth - 1);
     }
 
-    if (right->faces.size() > 0) {
-        node->right = right;
-        grow_bvh(right, depth - 1);
-    } else {
-        delete right;
+    if (right.faces.size() > 0) {
+        nodes.push_back(right);
+        nodes[node].right = nodes.size() - 1;
+        grow_bvh(nodes.size() - 1, depth - 1);
     }
 }
 
 
 std::tuple<bool, int, float, float> // mask, leaf index, t_enter, t_exit
-BVH::intersect_leaves(const glm::vec3& o, const glm::vec3& d) {
-    return intersect(root, o, d);
-}
-
-std::tuple<bool, int, float, float> // mask, leaf index, t_enter, t_exit
-BVH::intersect(const BVHNode *node, const glm::vec3& o, const glm::vec3& d) {
-    if (node->inside(o)) {
+BVH::intersect_leaves(int node, const glm::vec3& o, const glm::vec3& d) {
+    if (nodes[node].inside(o)) {
         return {false, -1, 0, 0};
     }
 
-    auto [mask, t1, t2] = ray_box_intersection(o, d, node->min, node->max);
+    auto [mask, t1, t2] = ray_box_intersection(o, d, nodes[node].min, nodes[node].max);
     if (!mask) {
         return {false, -1, 0, 0};
     }
 
-    if (node->is_leaf()) {
-        return {true, -1, t1, t2};
+    if (nodes[node].is_leaf()) {
+        return {true, node, t1, t2};
     }
 
-    auto [mask_l, leaf_l, t1_l, t2_l] = intersect(node->left, o, d);
-    auto [mask_r, leaf_r, t1_r, t2_r] = intersect(node->right, o, d);
+    auto [mask_l, leaf_l, t1_l, t2_l] = intersect_leaves(nodes[node].left, o, d);
+    auto [mask_r, leaf_r, t1_r, t2_r] = intersect_leaves(nodes[node].right, o, d);
 
     if (!mask_l && !mask_r) {
         return {false, -1, 0, 0};
@@ -171,7 +167,7 @@ BVH::intersect(const BVHNode *node, const glm::vec3& o, const glm::vec3& d) {
 }
 
 
-void BVHNode::save_as_obj(const std::string& filename) {
+void BVH::save_as_obj(const std::string& filename) {
     std::ofstream outFile(filename);
 
     if (!outFile.is_open()) {
@@ -205,21 +201,21 @@ void BVHNode::save_as_obj(const std::string& filename) {
     };
 
     // Recursive function to traverse the BVH and write leaf nodes
-    std::function<void(const BVHNode*)> traverseAndWrite = [&](const BVHNode* node) {
-        if (!node) return;
+    std::function<void(int)> traverseAndWrite = [&](int node) {
+        if (node == -1) return;
 
-        if (!node->left && !node->right) {
+        if (nodes[node].is_leaf()) {
             // Leaf node: write its bounding box as a cube
-            writeCube(node->min, node->max);
+            writeCube(nodes[node].min, nodes[node].max);
         }
 
         // Recursively traverse children
-        traverseAndWrite(node->left);
-        traverseAndWrite(node->right);
+        traverseAndWrite(nodes[node].left);
+        traverseAndWrite(nodes[node].right);
     };
 
     // Start traversal and writing
-    traverseAndWrite(this);
+    traverseAndWrite(0);
 
     outFile.close();
     std::cout << "BVH saved as .obj file: " << filename << std::endl;

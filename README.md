@@ -4,9 +4,11 @@ Super-early release. No selection criteria, no cuda, no triangle intersection, n
 But GUESS WHAT? PYTHON BINDINGS ARE ALREADY HERE! See `tests/test.py`
 
 ![no image?](https://i.imgur.com/yh6rj9C.png)
+![no image?](https://i.imgur.com/sVzMaJX.png)
 
 ## Requirements
 * Assimp
+* glm
 * `numpy matplotlib scipy`
 
 ## Installation

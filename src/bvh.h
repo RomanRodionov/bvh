@@ -76,27 +76,13 @@ ray_box_intersection(const glm::vec3 &o, const glm::vec3 &d, const glm::vec3 &mi
 
 struct BVHNode {
     glm::vec3 min, max;
-    BVHNode *left, *right;
+    int left, right;
     std::vector<Face> faces;
 
-    BVHNode() : left(nullptr), right(nullptr) {}
+    BVHNode() : left(-1), right(-1) {}
 
     int is_leaf() const {
-        return left == nullptr && right == nullptr;
-    }
-
-    int depth() const {
-        if (is_leaf()) {
-            return 0;
-        }
-        return 1 + std::max(left->depth(), right->depth());
-    }
-
-    int n_nodes() const {
-        int n = 1;
-        if (left  != nullptr) n += left ->n_nodes();
-        if (right != nullptr) n += right->n_nodes();
-        return n;
+        return left == -1 && right == -1;
     }
 
     bool inside(glm::vec3 point) const {
@@ -104,47 +90,56 @@ struct BVHNode {
                point.y >= min.y && point.y <= max.y &&
                point.z >= min.z && point.z <= max.z;
     }
-
-    ~BVHNode() {
-        if (left != nullptr) {
-            delete left;
-        }
-        if (right != nullptr) {
-            delete right;
-        }
-    }
-
-    // save leaves as boxes in .obj file
-    void save_as_obj(const std::string& filename);
 };
 
 
 struct BVH {
     Mesh mesh;
-    BVHNode *root;
+    std::vector<BVHNode> nodes;
 
-    BVH() : root() {}
+    BVH() {}
 
     void load_scene(const char *path) {
         mesh = Mesh(path);
     }
 
     void build_bvh(int depth); // inits root and grows bvh
-    void grow_bvh(BVHNode *node, int depth); // recursive function to grow bvh
+    void grow_bvh(int node, int depth); // recursive function to grow bvh
 
-    void save_as_obj(const std::string& filename) {
-        root->save_as_obj(filename);
+    int depth() {
+        return depth(0);
     }
+    int depth(int node) {
+        if (nodes[node].is_leaf()) {
+            return 0;
+        }
+        return 1 + std::max(depth(nodes[node].left), depth(nodes[node].right));
+    }
+
+    int n_nodes() {
+        return nodes.size();
+    }
+
+    int n_leaves() {
+        return n_leaves(0);
+    }
+    int n_leaves(int node) {
+        if (nodes[node].is_leaf()) {
+            return 1;
+        }
+        int n = 0;
+        if (nodes[node].left  != -1) n += n_leaves(nodes[node].left);
+        if (nodes[node].right != -1) n += n_leaves(nodes[node].right);
+        return n;
+    }
+
+    // save leaves as boxes in .obj file
+    void save_as_obj(const std::string& filename);
     
     std::tuple<bool, int, float, float> // mask, leaf index, t_enter, t_exit
-    intersect_leaves(const glm::vec3& o, const glm::vec3& d); // calls intersect
-
-    std::tuple<bool, int, float, float> // mask, leaf index, t_enter, t_exit
-    intersect(const BVHNode *node, const glm::vec3& o, const glm::vec3& d); // recursive bvh traversal
-
-    ~BVH() {
-        if (root != nullptr) {
-            delete root;
-        }
+    intersect_leaves(const glm::vec3& o, const glm::vec3& d) {
+        return intersect_leaves(0, o, d);
     }
+    std::tuple<bool, int, float, float> // mask, leaf index, t_enter, t_exit
+    intersect_leaves(int node, const glm::vec3& o, const glm::vec3& d); // recursive bvh traversal
 };

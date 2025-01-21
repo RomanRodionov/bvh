@@ -47,5 +47,8 @@ PYBIND11_MODULE(bvh, m) {
             }
 
             return std::make_tuple(mask, leaf_indices, t_enters, t_exits);
-        });
+        })
+        .def("depth", py::overload_cast<>(&BVH::depth))
+        .def("n_nodes", &BVH::n_nodes)
+        .def("n_leaves", py::overload_cast<>(&BVH::n_leaves));
 }
