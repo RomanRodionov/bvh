@@ -36,13 +36,61 @@ void BVH::build_bvh(int depth) {
 }
 
 
+float leaf_cost(const BVHNode& node) {
+    return node.faces.size() * TRIANGLE_INTERSECTION_COST;
+}
+
+
+float box_area(const glm::vec3& min, const glm::vec3& max) {
+    glm::vec3 size = max - min;
+    return 2 * (size.x * size.y + size.x * size.z + size.y * size.z);
+}
+
+float box_volume(const glm::vec3& min, const glm::vec3& max) {
+    glm::vec3 size = max - min;
+    return size.x * size.y * size.z;
+}
+
+
+float split_cost(const BVH& bvh, int node, int axis, const std::vector<Face>& faces_sorted, int split_i) {
+    BVHNode left, right;
+
+    for (int j = 0; j < 3; ++j) {
+        left.min = glm::min(left.min, bvh.mesh.vertices[faces_sorted[0][j]]);
+        left.max = glm::max(left.max, bvh.mesh.vertices[faces_sorted[split_i - 1][j]]);
+
+        right.min = glm::min(right.min, bvh.mesh.vertices[faces_sorted[split_i][j]]);
+        right.max = glm::max(right.max, bvh.mesh.vertices[faces_sorted[faces_sorted.size() - 1][j]]);
+    }
+
+    float parent_area = (bvh.nodes[node].max - bvh.nodes[node].min)[axis];
+    float left_area = (left.max - left.min)[axis];
+    float right_area = (right.max - right.min)[axis];
+
+    // cout << "Split after " << split_i << ";" << endl;
+    // cout << "left min: " << left.min.x << " " << left.min.y << " " << left.min.z << "; left max: " << left.max.x << " " << left.max.y << " " << left.max.z << endl;
+    // cout << "right min: " << right.min.x << " " << right.min.y << " " << right.min.z << "; right max: " << right.max.x << " " << right.max.y << " " << right.max.z << endl;
+    // cout << "cost: " << (left.max - left.min)[axis] << " " << (right.max - right.min)[axis] << endl;
+
+    // return (left.max - left.min)[axis] + (right.max - right.min)[axis];
+    // return box_area(left.min, left.max) + box_area(right.min, right.max);
+
+    float left_cost = left_area / parent_area * split_i * TRIANGLE_INTERSECTION_COST;
+    float right_cost = right_area / parent_area * (faces_sorted.size() - split_i) * TRIANGLE_INTERSECTION_COST;
+
+    return TRAVERSAL_COST + left_cost + right_cost;
+}
+
+
 void BVH::grow_bvh(int node, int depth) {
     BVHNode *root = &nodes[node];
 
     if (depth <= 0 || root->faces.size() <= 1) {
+        #ifdef DEBUG
         cout << "Child node min: " << root->min.x << " " << root->min.y << " " << root->min.z << endl;
         cout << "Child node max: " << root->max.x << " " << root->max.y << " " << root->max.z << endl;
         cout << endl;
+        #endif
 
         return;
     }
@@ -76,7 +124,30 @@ void BVH::grow_bvh(int node, int depth) {
         return a_min[axis] < b_min[axis];
     });
 
-    int split_i = faces_sorted.size() / 2;
+
+    // for (int i = 0; i < faces_sorted.size(); ++i) {
+    //     cout << i << " " << mesh.vertices[faces_sorted[i].v1].x << " " << mesh.vertices[faces_sorted[i].v2].x << " " << mesh.vertices[faces_sorted[i].v3].x << endl;
+    // }
+
+
+    float best_cost = FLT_MAX;
+    int best_split_i = -1;
+    float cur_cost = leaf_cost(*root);
+
+    for (int i = 1; i < faces_sorted.size(); i++) {
+        float cost = split_cost(*this, node, axis, faces_sorted, i);
+        if (cost < best_cost) {
+            best_cost = cost;
+            best_split_i = i;
+        }
+    }
+
+    int split_i = best_split_i;
+    // int split_i = faces_sorted.size() / 2;
+
+    #ifdef DEBUG
+    cout << "Splitting at " << split_i << " out of " << faces_sorted.size() << endl;
+    #endif
 
     BVHNode left;
     left.min = glm::vec3(FLT_MAX);
@@ -106,6 +177,7 @@ void BVH::grow_bvh(int node, int depth) {
         right.faces.push_back(face);
     }
 
+    #ifdef DEBUG
     cout << "Current depth is " << depth << endl;
     cout << "Parent node min: " << root->min.x << " " << root->min.y << " " << root->min.z << endl;
     cout << "Parent node max: " << root->max.x << " " << root->max.y << " " << root->max.z << endl;
@@ -114,6 +186,7 @@ void BVH::grow_bvh(int node, int depth) {
     cout << "Number of faces left: " << left.faces.size() << endl;
     cout << "Number of faces right: " << right.faces.size() << endl;
     cout << endl;
+    #endif
 
     if (left.faces.size() > 0) {
         nodes.push_back(left);

@@ -16,6 +16,10 @@
 using std::cin, std::cout, std::endl;
 
 
+const float TRIANGLE_INTERSECTION_COST = 1.0f;
+const float TRAVERSAL_COST = 1.0f;
+
+
 struct Face {
     unsigned v1, v2, v3;
     Face(unsigned v1, unsigned v2, unsigned v3) : v1(v1), v2(v2), v3(v3) {}
@@ -79,7 +83,12 @@ struct BVHNode {
     int left, right;
     std::vector<Face> faces;
 
-    BVHNode() : left(-1), right(-1) {}
+    BVHNode() {
+        left = -1;
+        right = -1;
+        min = glm::vec3(FLT_MAX);
+        max = glm::vec3(-FLT_MAX);
+    }
 
     int is_leaf() const {
         return left == -1 && right == -1;
@@ -143,3 +152,7 @@ struct BVH {
     std::tuple<bool, int, float, float> // mask, leaf index, t_enter, t_exit
     intersect_leaves(int node, const glm::vec3& o, const glm::vec3& d); // recursive bvh traversal
 };
+
+
+float leaf_cost(const BVHNode& node);
+float split_cost(const BVH& bvh, int node, int axis, const std::vector<Face>& faces_sorted, int split_i);

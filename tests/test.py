@@ -30,7 +30,7 @@ color_pool = np.array([
 
 loader = BVH()
 loader.load_scene("suzanne2.fbx")
-loader.build_bvh(15)
+loader.build_bvh(10)
 
 resolution = 1000
 

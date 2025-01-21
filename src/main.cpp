@@ -2,8 +2,12 @@
 
 int main() {
     BVH bvh;
-    bvh.load_scene("suzanne.fbx");
-    bvh.build_bvh(15);
+    bvh.load_scene("lego.fbx");
+
+    cout << "Number of vertices: " << bvh.mesh.vertices.size() << endl;
+    cout << "Number of faces: " << bvh.mesh.faces.size() << endl;
+
+    bvh.build_bvh(10);
     bvh.save_as_obj("bvh.obj");
 
     cout << "Depth: " << bvh.depth() << endl;

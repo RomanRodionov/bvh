@@ -19,6 +19,6 @@ pip install .
 
 To build and run as C++ program, run
 ```
-make compile
+make release
 make run
 ```
