@@ -114,6 +114,11 @@ struct BVH {
 
     void build_bvh(int depth); // inits root and grows bvh
     void grow_bvh(int node, int depth); // recursive function to grow bvh
+    
+    std::tuple<glm::vec3, glm::vec3>
+    get_bbox(int node){
+        return {nodes[node].min, nodes[node].max};
+    }
 
     int depth() {
         return depth(0);

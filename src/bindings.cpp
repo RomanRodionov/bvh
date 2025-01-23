@@ -50,5 +50,9 @@ PYBIND11_MODULE(bvh, m) {
         })
         .def("depth", py::overload_cast<>(&BVH::depth))
         .def("n_nodes", &BVH::n_nodes)
-        .def("n_leaves", py::overload_cast<>(&BVH::n_leaves));
+        .def("n_leaves", py::overload_cast<>(&BVH::n_leaves))        
+        .def("get_bbox", [](BVH& self, int node) {
+            auto [vmin, vmax] = self.get_bbox(node);
+            return std::make_tuple(py::array_t<float>({3}, {sizeof(float)}, (float*)&vmin), py::array_t<float>({3}, {sizeof(float)}, (float*)&vmax));
+        });;
 }
