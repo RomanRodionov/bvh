@@ -124,12 +124,6 @@ void BVH::grow_bvh(int node, int depth) {
         return a_min[axis] < b_min[axis];
     });
 
-
-    // for (int i = 0; i < faces_sorted.size(); ++i) {
-    //     cout << i << " " << mesh.vertices[faces_sorted[i].v1].x << " " << mesh.vertices[faces_sorted[i].v2].x << " " << mesh.vertices[faces_sorted[i].v3].x << endl;
-    // }
-
-
     float best_cost = FLT_MAX;
     int best_split_i = -1;
     float cur_cost = leaf_cost(*root);
@@ -204,12 +198,20 @@ void BVH::grow_bvh(int node, int depth) {
 
 std::tuple<bool, int, float, float> // mask, leaf index, t_enter, t_exit
 BVH::intersect_leaves(const glm::vec3& o, const glm::vec3& d, int& stack_size, uint32_t* stack) {
+    if (stack_size == 1 && stack[0] == 0) {
+        auto [mask, t1, t2] = ray_box_intersection(o, d, nodes[0].min, nodes[0].max);
+        if (!mask) {
+            return {false, -1, 0, 0};
+        }
+    }
+
     while (stack_size > 0) {
         uint32_t node_idx = stack[--stack_size];
 
         if (nodes[node_idx].is_leaf()) {
             // redundant computation, yes I know
             auto [mask, t1, t2] = ray_box_intersection(o, d, nodes[node_idx].min, nodes[node_idx].max);
+
             return {mask, node_idx, t1, t2};
         }
 
@@ -225,11 +227,11 @@ BVH::intersect_leaves(const glm::vec3& o, const glm::vec3& d, int& stack_size, u
             std::swap(t2_l, t2_r);
         }
 
-        if (mask_l && stack_size < max_depth) {
+        if (mask_l) {
             stack[stack_size++] = left;
         }
 
-        if (mask_r && stack_size < max_depth) {
+        if (mask_r) {
             stack[stack_size++] = right;
         }
     }
