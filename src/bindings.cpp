@@ -13,37 +13,83 @@ PYBIND11_MODULE(bvh, m) {
         .def("load_scene", &BVH::load_scene)
         .def("build_bvh", &BVH::build_bvh)
         .def("save_as_obj", &BVH::save_as_obj)
-        .def("intersect_leaves", [](BVH& self, py::array_t<float> ray_origins, py::array_t<float> ray_directions) {
-            auto r_o = ray_origins.unchecked<2>();
-            auto r_d = ray_directions.unchecked<2>();
+        .def("intersect_leaves", [](
+            BVH& self,
+            py::array_t<float> ray_origins,
+            py::array_t<float> ray_directions,
+            py::array_t<int> stack_size,
+            py::array_t<uint32_t> stack
+        ) {
+            auto ray_origins_buf = ray_origins.request();
+            auto ray_directions_buf = ray_directions.request();
+            auto stack_size_buf = stack_size.request();
+            auto stack_buf = stack.request();
 
-            if (r_o.shape(0) != r_d.shape(0)) {
-                throw std::runtime_error("Mismatched ray origins and directigons!");
+            int n_rays = ray_origins_buf.shape[0];
+    
+            if (ray_directions_buf.shape[0] != n_rays || stack_size_buf.shape[0] != n_rays) {
+                throw std::runtime_error("Mismatched shapes!");
             }
 
-            std::vector<glm::vec3> origins(r_o.shape(0)), directions(r_d.shape(0));
-            for (ssize_t i = 0; i < r_o.shape(0); ++i) {
-                origins[i] = glm::vec3(r_o(i, 0), r_o(i, 1), r_o(i, 2));
-                directions[i] = glm::vec3(r_d(i, 0), r_d(i, 1), r_d(i, 2));
+            if (ray_directions_buf.ndim != 2 || ray_directions_buf.shape[1] != 3) {
+                throw std::runtime_error("ray_directions must have shape (N,3)");
+            }
+            if (ray_directions_buf.itemsize != sizeof(float)) {
+                throw std::runtime_error("ray_directions must have dtype float32");
             }
 
-            int size = origins.size();
-            py::array_t<bool> mask({size});
-            py::array_t<int> leaf_indices({size});
-            py::array_t<float> t_enters({size});
-            py::array_t<float> t_exits({size});
+            if (stack_size_buf.ndim != 1) {
+                throw std::runtime_error("stack_size must have shape (N,)");
+            }
+            if (stack_size_buf.itemsize != sizeof(int)) {
+                throw std::runtime_error("stack_size must have dtype int32");
+            }
 
-            auto mask_buf = mask.mutable_unchecked<1>();
-            auto leaf_indices_buf = leaf_indices.mutable_unchecked<1>();
-            auto t_enters_buf = t_enters.mutable_unchecked<1>();
-            auto t_exits_buf = t_exits.mutable_unchecked<1>();
+            if (stack_buf.ndim != 2) {
+                throw std::runtime_error("stack must have shape (N,stack_size)");
+            }
+            if (stack_buf.itemsize != sizeof(uint32_t)) {
+                throw std::runtime_error("stack must have dtype uint32");
+            }
 
-            for (int i = 0; i < size; ++i) {
-                auto [mask, leaf_index, t_enter, t_exit] = self.intersect_leaves(origins[i], directions[i]);
-                mask_buf(i) = mask;
-                leaf_indices_buf(i) = leaf_index;
-                t_enters_buf(i) = t_enter;
-                t_exits_buf(i) = t_exit;
+            int given_stack_size = stack_buf.shape[1];
+            if (given_stack_size < self.max_depth) {
+                throw std::runtime_error("Stack size too small!");
+            }
+            if (ray_origins_buf.ndim != 2 || ray_origins_buf.shape[1] != 3) {
+                throw std::runtime_error("ray_origins must have shape (N,3)");
+            }
+            if (ray_origins_buf.itemsize != sizeof(float)) {
+                throw std::runtime_error("ray_origins must have dtype float32");
+            }
+
+            glm::vec3 *ray_origins_ptr = (glm::vec3 *) ray_origins.request().ptr;
+            glm::vec3 *ray_directions_ptr = (glm::vec3 *) ray_directions.request().ptr;
+            int *stack_size_ptr = (int *) stack_size.request().ptr;
+            uint32_t *stack_ptr = (uint32_t *) stack.request().ptr;
+
+            py::array_t<bool> mask({n_rays});
+            py::array_t<int> leaf_indices({n_rays});
+            py::array_t<float> t_enters({n_rays});
+            py::array_t<float> t_exits({n_rays});
+
+            bool *mask_ptr = (bool *) mask.request().ptr;
+            int *leaf_indices_ptr = (int *) leaf_indices.request().ptr;
+            float *t_enters_ptr = (float *) t_enters.request().ptr;
+            float *t_exits_ptr = (float *) t_exits.request().ptr;
+
+            for (int i = 0; i < n_rays; ++i) {
+                auto [mask, leaf_index, t_enter, t_exit] = self.intersect_leaves(
+                    ray_origins_ptr[i],
+                    ray_directions_ptr[i], 
+                    stack_size_ptr[i],
+                    stack_ptr + given_stack_size * i
+                );
+
+                mask_ptr[i] = mask;
+                leaf_indices_ptr[i] = leaf_index;
+                t_enters_ptr[i] = t_enter;
+                t_exits_ptr[i] = t_exit;
             }
 
             return std::make_tuple(mask, leaf_indices, t_enters, t_exits);
