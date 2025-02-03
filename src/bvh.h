@@ -103,6 +103,8 @@ struct BVHNode {
 
 
 struct BVH {
+    int max_depth = 15;
+
     Mesh mesh;
     std::vector<BVHNode> nodes;
 
@@ -151,11 +153,7 @@ struct BVH {
     void save_as_obj(const std::string& filename);
     
     std::tuple<bool, int, float, float> // mask, leaf index, t_enter, t_exit
-    intersect_leaves(const glm::vec3& o, const glm::vec3& d) {
-        return intersect_leaves(0, o, d);
-    }
-    std::tuple<bool, int, float, float> // mask, leaf index, t_enter, t_exit
-    intersect_leaves(int node, const glm::vec3& o, const glm::vec3& d); // recursive bvh traversal
+    intersect_leaves(const glm::vec3& o, const glm::vec3& d, int& stack_size, uint32_t* stack); // bvh traversal, stack_size and stack are altered
 };
 
 

@@ -124,12 +124,6 @@ void BVH::grow_bvh(int node, int depth) {
         return a_min[axis] < b_min[axis];
     });
 
-
-    // for (int i = 0; i < faces_sorted.size(); ++i) {
-    //     cout << i << " " << mesh.vertices[faces_sorted[i].v1].x << " " << mesh.vertices[faces_sorted[i].v2].x << " " << mesh.vertices[faces_sorted[i].v3].x << endl;
-    // }
-
-
     float best_cost = FLT_MAX;
     int best_split_i = -1;
     float cur_cost = leaf_cost(*root);
@@ -203,40 +197,46 @@ void BVH::grow_bvh(int node, int depth) {
 
 
 std::tuple<bool, int, float, float> // mask, leaf index, t_enter, t_exit
-BVH::intersect_leaves(int node, const glm::vec3& o, const glm::vec3& d) {
-    if (nodes[node].inside(o)) {
-        return {false, -1, 0, 0};
+BVH::intersect_leaves(const glm::vec3& o, const glm::vec3& d, int& stack_size, uint32_t* stack) {
+    if (stack_size == 1 && stack[0] == 0) {
+        auto [mask, t1, t2] = ray_box_intersection(o, d, nodes[0].min, nodes[0].max);
+        if (!mask) {
+            return {false, -1, 0, 0};
+        }
     }
 
-    auto [mask, t1, t2] = ray_box_intersection(o, d, nodes[node].min, nodes[node].max);
-    if (!mask) {
-        return {false, -1, 0, 0};
+    while (stack_size > 0) {
+        uint32_t node_idx = stack[--stack_size];
+
+        if (nodes[node_idx].is_leaf()) {
+            // redundant computation, yes I know
+            auto [mask, t1, t2] = ray_box_intersection(o, d, nodes[node_idx].min, nodes[node_idx].max);
+
+            return {mask, node_idx, t1, t2};
+        }
+
+        uint32_t left = nodes[node_idx].left;
+        uint32_t right = nodes[node_idx].right;
+
+        auto [mask_l, t1_l, t2_l] = ray_box_intersection(o, d, nodes[left].min, nodes[left].max);
+        auto [mask_r, t1_r, t2_r] = ray_box_intersection(o, d, nodes[right].min, nodes[right].max);
+
+        if (mask_l && mask_r && t1_l < t1_r) {
+            std::swap(left, right);
+            std::swap(t1_l, t1_r);
+            std::swap(t2_l, t2_r);
+        }
+
+        if (mask_l) {
+            stack[stack_size++] = left;
+        }
+
+        if (mask_r) {
+            stack[stack_size++] = right;
+        }
     }
 
-    if (nodes[node].is_leaf()) {
-        return {true, node, t1, t2};
-    }
-
-    auto [mask_l, leaf_l, t1_l, t2_l] = intersect_leaves(nodes[node].left, o, d);
-    auto [mask_r, leaf_r, t1_r, t2_r] = intersect_leaves(nodes[node].right, o, d);
-
-    if (!mask_l && !mask_r) {
-        return {false, -1, 0, 0};
-    }
-
-    if (!mask_l) {
-        return {mask_r, leaf_r, t1_r, t2_r};
-    }
-
-    if (!mask_r) {
-        return {mask_l, leaf_l, t1_l, t2_l};
-    }
-
-    if (t1_l < t1_r) {
-        return {mask_l, leaf_l, t1_l, t2_l};
-    }
-
-    return {mask_r, leaf_r, t1_r, t2_r};
+    return {false, -1, 0, 0};
 }
 
 

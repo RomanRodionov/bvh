@@ -13,7 +13,7 @@ def cut_edges(img):
     return mixed
 
 
-# blue, yellow, pink, whatever
+# blue, yellow, pink, whatever man, just keep bringing me that
 color_pool = np.array([
     [  0, 128, 128],  # Teal Blue
     [255,  94,  77],  # Sunset Orange
@@ -30,7 +30,7 @@ color_pool = np.array([
 
 loader = BVH()
 loader.load_scene("suzanne2.fbx")
-loader.build_bvh(10)
+loader.build_bvh(15)
 
 resolution = 1000
 
@@ -45,7 +45,9 @@ pixels = np.hstack((
 origins = np.tile(origin, (pixels.shape[0], 1))
 directions = pixels - origins
 
-mask, leaf_indices, t1, t2 = loader.intersect_leaves(origins, directions)
+stack_size = np.ones((origins.shape[0],), dtype=np.int32)
+stack = np.zeros((origins.shape[0], 20), dtype=np.uint32)
+mask, leaf_indices, t1, t2 = loader.intersect_leaves(origins, directions, stack_size, stack)
 mask_img = mask.reshape(resolution, resolution)
 
 image = np.zeros((resolution, resolution, 3))
